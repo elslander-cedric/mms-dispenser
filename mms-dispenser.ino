@@ -60,7 +60,7 @@ int get_story_points(int user_index) {
   }
   
   // Send HTTP request
-  client.println(F("GET /api/v2/search/stories?token=5d8c41c5-82ee-4f2c-8fe6-4d791f2e7cea&query=state:done%20owner:" + users[user_index] + "&page_size=1 HTTP/1.1"));
+  client.println(F("GET /api/v2/search/stories?token=SECRET_TOKEN&query=state:done%20owner:" + users[user_index] + "&page_size=1 HTTP/1.1"));
   client.println(F("Host: api.app.shortcut.com"));
   //client.println(F("Connection: close"));
 
