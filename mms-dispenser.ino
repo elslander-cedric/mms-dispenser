@@ -1,57 +1,74 @@
 #include <Servo.h>
 #include <SPI.h>
 #include <WiFiNINA.h>
+#include <SoftwareWire.h>
+SoftwareWire Wire(SDA,SCL);
 
-#include "secrets.h" 
+#include <hd44780.h>
+#include <hd44780ioClass/hd44780_I2Cexp.h>
+
+#include "secrets.h"
 
 Servo servo;
 WiFiSSLClient client;
+hd44780_I2Cexp lcd;
 
-String users[4] = {"cedricelslander", "aldwin", "jgoubert", "robin_"};
-int stories[4];
-  
+const int nof_users = 5;
+String users[nof_users] = {"cedricelslander", "aldwin", "jgoubert", "robin_", "nathanvangierdegom"};
+int stories[nof_users];
+
 void setup() {
   Serial.begin(9600);
   while (!Serial) continue;
+  
+  lcd.begin(16,2);
+  lcd.init();
 }
 
 void loop() {
-  for(int i=0;i<4;i++) {    
-    int amount= get_story_points(i);  
+  for(int i=0;i<nof_users;i++) {    
+    int amount= get_story_points(i);
+   
     if(amount > 0) {
+      display_lcd(users[i], "STORY POINTS: " + String(amount));
       servo_dispense(amount);
     }
     delay(5000);
   }
 }
 
+void display_lcd(String message1, String message2) {
+  lcd.clear();
+  //lcd.setBacklight(0);
+  //lcd.backlight();
+  lcd.noBacklight();
+
+  //lcd.home();
+  lcd.setCursor(0, 0);
+  lcd.print(message1);
+  lcd.setCursor(0, 1);
+  lcd.print(message2);
+}
+
 int disconnect_shortcut() {
-  if (!client.connected()) {  
-    Serial.println(); 
-    Serial.println("Disconnecting from server..."); 
+  if (!client.connected()) {
+    Serial.println("DISCONNECTING");
     client.stop();
   }
 }
 
-int connect_shortcut() {
-  Serial.println("Connecting to server...");
-  
+int connect_shortcut() {  
   connect_wifi();
   
   char server[] = "api.app.shortcut.com";
   if (!client.connect(server, 443)) {
-    Serial.println(F("Connection failed"));
+    Serial.println(F("CONNECT FAILED"));
     return -1;
   }
-  
-  Serial.println("Connected to server");
   return 0;
 }
 
-int get_story_points(int user_index) {
-  Serial.print("\nCheck for new completed story for:");
-  Serial.println(users[user_index]);
-  
+int get_story_points(int user_index) {  
   while(!client.connected()) {
     if(connect_shortcut() == -1) {
       disconnect_shortcut();
@@ -60,19 +77,16 @@ int get_story_points(int user_index) {
   }
   
   // Send HTTP request
-  client.println(F("GET /api/v2/search/stories?token=5d8c41c5-82ee-4f2c-8fe6-4d791f2e7cea&query=state:done%20owner:" + users[user_index] + "&page_size=1 HTTP/1.1"));
+  client.println(F("GET /api/v2/search/stories?token=" + SECRET_TOKEN + "&query=state:done%20owner:" + users[user_index] + "&page_size=1 HTTP/1.1"));
   client.println(F("Host: api.app.shortcut.com"));
   //client.println(F("Connection: close"));
 
   if (client.println() == 0) {
-    Serial.println("\nFailed to send request");
+    Serial.println("SEND REQUEST ERR");
     return -1;
   }
-  Serial.println("\nRequest was sent");
 
-  Serial.println("\nWaiting for available bytes to read...");
   while(!client.available()) {
-    Serial.println("No available bytes to read yet");
     delay(1000);
   }
   
@@ -80,7 +94,7 @@ int get_story_points(int user_index) {
   char status[32] = {0};
   client.readBytesUntil('\r', status, sizeof(status));
   if (strcmp(status, "HTTP/1.1 200 OK") != 0) {
-    Serial.print(F("Unexpected response: "));
+    Serial.print(F("RESPONSE NOK"));
     Serial.println(status);
     return -1;
   }
@@ -88,7 +102,7 @@ int get_story_points(int user_index) {
   // Skip HTTP headers
   char endOfHeaders[] = "\r\n\r\n";
   if (!client.find(endOfHeaders)) {
-    Serial.println(F("Invalid response"));
+    Serial.println(F("RESPONSE ERR"));
     return -1;
   }
 
@@ -133,17 +147,9 @@ int parse_raw(int user_index) {
   i_estimate = s_estimate.toInt();
 
   if(stories[user_index] != i_id){
-    Serial.println(F("Found a new story!"));
-
-    Serial.println(F("latest story id:"));
-    Serial.print(i_id);
-    Serial.println(F("story points:"));
-    Serial.print(i_estimate);
-    
     stories[user_index] = i_id;
     return i_estimate;
   } else {
-    Serial.println(F("No new story found"));
     return 0;
   }
 }
@@ -155,44 +161,37 @@ void connect_wifi() {
   int status = WL_IDLE_STATUS;
 
   while (WiFi.status() == WL_NO_MODULE) {
-    Serial.println("Communication with WiFi module failed!");
+    Serial.println("WIFI ERR");
     delay(1000);
   }
 
   while (status != WL_CONNECTED) {
-    Serial.print("Attempting to connect to SSID: ");
+    Serial.println("WIFI SSID:");
     Serial.println(ssid);
     status = WiFi.begin(ssid, pass);
     delay(1000);
   }
 
-  Serial.println("Connected to wifi");
+  Serial.println("WIFI CONNECTED");
   print_wifi_status();
 }
 
 void print_wifi_status() {
   // print the SSID of the network you're attached to:
-  Serial.print("SSID: ");
+  Serial.print("SSID:");
   Serial.println(WiFi.SSID());
 
   // print your board's IP address:
   IPAddress ip = WiFi.localIP();
-  Serial.print("IP Address: ");
-  Serial.println(ip);
-
-  // print the received signal strength:
-  long rssi = WiFi.RSSI();
-  Serial.print("signal strength (RSSI):");
-  Serial.print(rssi);
-  Serial.println(" dBm");
+  Serial.print("IP:");
+  Serial.println(F(ip));
 }
 
 void servo_dispense(int amount) {
-  Serial.println(F("Dispensing..."));
   int servoPin = 3;
   
   servo.attach(servoPin);
-  servo.write(75);
-  delay(5000);
+  servo.write(0);
+  delay(amount * 1000);
   servo.detach();
 }
