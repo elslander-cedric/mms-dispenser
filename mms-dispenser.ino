@@ -9,6 +9,13 @@ SoftwareWire Wire(SDA,SCL);
 
 #include "secrets.h"
 
+#include "zelda.h"
+#include "gameofthrones.h"
+#include "nokia.h"
+#include "pacman.h"
+#include "starwars.h"
+#include "supermariobros.h"
+
 Servo servo;
 WiFiSSLClient client;
 hd44780_I2Cexp lcd;
@@ -31,9 +38,30 @@ void loop() {
    
     if(amount > 0) {
       display_lcd(users[i], "STORY POINTS: " + String(amount));
+      play(i);
       servo_dispense(amount);
     }
     delay(5000);
+  }
+}
+
+void play(int user_index) {
+  switch(user_index) {
+    case 0:
+      starwars();
+      break;
+    case 1:
+      supermariobros();
+      break;
+    case 2:
+      gameofthrones();
+      break;
+    case 3:
+      nokia();
+      break;
+    case 4:
+      pacman();
+      break;
   }
 }
 
